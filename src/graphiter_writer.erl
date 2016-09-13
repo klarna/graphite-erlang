@@ -16,13 +16,13 @@
 -define(undef, undefined).
 
 -type name() :: graphiter:name().
--type path() :: graphiter:path().
+-type path() :: binary(). %% unified format
 -type value() :: graphiter:value().
 -type epoch() :: graphiter:epoch().
 
 -record(state,
         { name   :: name()
-        , prefix :: ?undef | atom() | string() | binary()
+        , prefix :: ?undef | path()
         , socket :: pid()
         , opts   :: [{atom(), term()}]
         }).
@@ -40,12 +40,13 @@ cast(Name, PathValues, Epoch) ->
 %%%_* gen_server callbacks =====================================================
 
 init([Name, Opts]) ->
+  ets:new(Name, [public, named_table, {write_concurrency, true}]),
   ok = gen_server:cast(self(), post_init),
   %% if prefix is not given, use the registration name by default
   Prefix = proplists:get_value(prefix, Opts, Name),
   State = #state
           { name   = Name
-          , prefix = Prefix
+          , prefix = graphiter:path(Prefix)
           , socket = ?undef %% initialized in post_init
           , opts   = Opts
           },
@@ -117,40 +118,17 @@ fmt_lines(Prefix, PathValues, Epoch) ->
 %% @end
 -spec fmt_line(?undef | path(), path(), value(), epoch()) -> iodata().
 fmt_line(Prefix, Path, Value, Epoch) ->
-  try
-    [fmt_path(Prefix, Path), " ",
-     fmt_value(Value), " ",
-     integer_to_list(Epoch), "\r\n"]
-  catch error : badarg ->
-      error_logger:error_msg("bad metric path prefix=~p path=~p",
-                             [Prefix, Path]),
-      <<>>
-  end.
+  [fmt_path(Prefix, Path), " ",
+   fmt_value(Value), " ",
+   integer_to_list(Epoch), "\r\n"].
 
 -spec fmt_value(number()) -> iodata().
 fmt_value(I) when is_integer(I) -> integer_to_list(I);
 fmt_value(I) when is_float(I)   -> float_to_list(I).
 
--spec fmt_path(?undef | path(), path()) -> binary().
-fmt_path(?undef, Path) -> path(Path);
-fmt_path(Prefix, Path) -> infix([path(Prefix), path(Path)]).
-
--spec path(path()) -> iodata() | no_return().
-path(A) when is_atom(A) ->
-  path(atom_to_binary(A, utf8));
-path(<<>>) ->
-  erlang:error(badarg);
-path(B) when is_binary(B) ->
-  case binary:match(B, <<" ">>) of
-    nomatch -> B;
-    _       -> erlang:error(badarg)
-  end;
-path([_|_] = L) ->
-  infix([path(I) || I <- L]).
-
--spec infix([atom() | binary()]) -> iolist().
-infix([_] = L) -> L;
-infix([H|T])   -> [H, $. | infix(T)].
+-spec fmt_path(?undef | binary(), binary()) -> binary().
+fmt_path(?undef, Path) -> Path;
+fmt_path(Prefix, Path) -> iolist_to_binary([Prefix, ".", Path]).
 
 is_error(normal)        -> false;
 is_error(shutdown)      -> false;
@@ -160,7 +138,7 @@ is_error(_)             -> true.
 log_error(Name, Reason) ->
   case is_error(Reason) of
     true ->
-      error_logger:error_msg("graphite_erlang_writer ~p terminated.\n"
+      error_logger:error_msg("graphiter_writer ~p terminated.\n"
                              "reason: ~p", [Name, Reason]);
     false ->
       ok
