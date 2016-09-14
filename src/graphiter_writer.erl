@@ -100,42 +100,48 @@ close_socket(Socket) ->
   _ = gen_tcp:close(Socket),
   ok.
 
-handle_send(#state{socket = Socket, prefix = Prefix}, PathValues, Epoch) ->
-  Lines = fmt_lines(Prefix, PathValues, Epoch),
-  IoData = [Lines | drain_message_queue(Prefix, [])],
+handle_send(#state{socket = Socket, prefix = Prefix}, PathValues, Epoch0) ->
+  Dict0  = add_values(dict:new(), PathValues, Epoch0),
+  Dict   = drain_message_queue(Dict0),
+  IoData = lists:map(fun({{Path, Epoch}, Value}) ->
+                       fmt_line(Prefix, Path, Value, Epoch)
+                     end, dict:to_list(Dict)),
   case send(Socket, IoData) of
     ok              -> ok;
     {error, Reason} -> exit({socket_error, Reason})
   end.
 
-drain_message_queue(Prefix, Acc) ->
+%% @private Graphite seems only take one data point
+%% and discard the sucessive ones with in one second
+%% use dict to perform a per-second compaction before send
+%% @end
+add_values(Dict, [], _Epoch) ->
+  Dict;
+add_values(Dict, [{Path, Value}], Epoch) ->
+  dict:store({Path, Epoch}, Value, Dict).
+
+drain_message_queue(Dict) ->
   receive
     {send, PathValues, Epoch} ->
-      Lines = fmt_lines(Prefix, PathValues, Epoch),
-      drain_message_queue(Prefix, [Lines | Acc])
+      NewDict = add_values(Dict, PathValues, Epoch),
+      drain_message_queue(NewDict)
     after
       0 ->
-        lists:reverse(Acc)
+        Dict
   end.
 
-send(_Socket, <<>>) -> ok;
-send(Socket, Line)  -> gen_tcp:send(Socket, Line).
-
--spec fmt_lines(?undef | path(), [{path(), value()}], epoch()) -> iodata().
-fmt_lines(Prefix, PathValues, Epoch) ->
-  iolist_to_binary(
-    lists:map(fun({Path, Value}) ->
-                fmt_line(Prefix, Path, Value, Epoch)
-              end, PathValues)).
+send(_Socket, [])    -> ok;
+send(Socket, IoData) -> gen_tcp:send(Socket, IoData).
 
 %% @private Format <metric path> <metric value> <metric timestamp>
 %% See http://graphite.readthedocs.io/en/latest/feeding-carbon.html
 %% @end
 -spec fmt_line(?undef | path(), path(), value(), epoch()) -> iodata().
 fmt_line(Prefix, Path, Value, Epoch) ->
-  [fmt_path(Prefix, Path), " ",
-   fmt_value(Value), " ",
-   integer_to_list(Epoch), "\n"].
+  iolist_to_binary(
+    [fmt_path(Prefix, Path), " ",
+     fmt_value(Value), " ",
+     integer_to_list(Epoch), "\n"]).
 
 -spec fmt_value(number()) -> iodata().
 fmt_value(I) when is_integer(I) -> integer_to_list(I);
