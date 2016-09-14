@@ -63,14 +63,8 @@ cast(Name, Path, Value, Epoch) ->
 incr_cast(Name, Path0, IncrValue) when is_integer(IncrValue) ->
   Path = path(Path0),
   Default = {Path, 0},
-  try
-    Value = ets:update_counter(Name, Path, IncrValue, Default),
-    graphiter_writer:cast(Name, [{Path, Value}], epoch())
-  catch
-    error : badarg ->
-      %% ets is not created, writer is restarting
-      ok
-  end.
+  Value = ets:update_counter(Name, Path, IncrValue, Default),
+  graphiter_writer:cast(Name, [{Path, Value}], epoch()).
 
 %% @doc Make a dot infixed graphite metric value path.
 -spec path(path()) -> iodata() | no_return().
