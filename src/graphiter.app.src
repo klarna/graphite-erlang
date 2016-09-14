@@ -1,0 +1,13 @@
+{application, graphiter, [
+  {description, "Graphite (carbon) metrics reporter for Erlang"},
+  {vsn, "0.0.1"},
+  {registered, []},
+  {applications, [
+    kernel,
+    stdlib,
+    supervisor3
+  ]},
+  {modules, []},
+  {mod, {graphiter_app, []}},
+  {env, []}
+]}.
