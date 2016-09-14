@@ -31,6 +31,9 @@
 
 -spec start_link(atom(), list()) -> {ok, pid()}.
 start_link(Name, Opts) ->
+  %% counter table owned by supervisor to avoid re-creation as much as possible
+  undefined =:= ets:info(Name) andalso
+    ets:new(Name, [public, named_table, {write_concurrency, true}]),
   gen_server:start_link({local, Name}, ?MODULE, [Name, Opts], []).
 
 -spec cast(atom(), [{path(), value()}], epoch()) -> ok.
@@ -40,7 +43,6 @@ cast(Name, PathValues, Epoch) ->
 %%%_* gen_server callbacks =====================================================
 
 init([Name, Opts]) ->
-  ets:new(Name, [public, named_table, {write_concurrency, true}]),
   ok = gen_server:cast(self(), post_init),
   %% if prefix is not given, use the registration name by default
   Prefix = proplists:get_value(prefix, Opts, Name),
