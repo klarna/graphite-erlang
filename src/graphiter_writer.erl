@@ -38,7 +38,12 @@ start_link(Name, Opts) ->
 
 -spec cast(atom(), [{path(), value()}], epoch()) -> ok.
 cast(Name, PathValues, Epoch) ->
-  gen_server:cast(Name, {send, PathValues, Epoch}).
+  try
+    erlang:send(Name, {send, PathValues, Epoch})
+  catch
+    error : badarg ->
+      ok
+  end.
 
 %%%_* gen_server callbacks =====================================================
 
@@ -57,10 +62,7 @@ init([Name, Opts]) ->
 post_init(#state{opts = Opts} = State) ->
   Host = proplists:get_value(host, Opts, ?DEFAULT_HOST),
   Port = proplists:get_value(port, Opts, ?DEFAULT_PORT),
-  %% use delay_send to send larger tcp packets
-  SocketOpts = [ {delay_send, true}
-               , {send_timeout, ?SOCKET_SEND_TIMEOUT}
-               ],
+  SocketOpts = [ {send_timeout, ?SOCKET_SEND_TIMEOUT} ],
   case gen_tcp:connect(Host, Port, SocketOpts, ?SOCKET_INIT_TIMEOUT) of
     {ok, Socket} ->
       State#state{socket = Socket};
@@ -71,14 +73,14 @@ post_init(#state{opts = Opts} = State) ->
 handle_call(Call, _From, State) ->
   {reply, {error, {unexpected_call, Call}}, State}.
 
-handle_cast({send, PathValues, Epoch}, State) ->
-  ok = handle_send(State, PathValues, Epoch),
-  {noreply, State};
 handle_cast(post_init, State) ->
   {noreply, post_init(State)};
 handle_cast(_Cast, State) ->
   {noreply, State}.
 
+handle_info({send, PathValues, Epoch}, State) ->
+  ok = handle_send(State, PathValues, Epoch),
+  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -99,14 +101,25 @@ close_socket(Socket) ->
   ok.
 
 handle_send(#state{socket = Socket, prefix = Prefix}, PathValues, Epoch) ->
-  case send(Socket, fmt_lines(Prefix, PathValues, Epoch)) of
+  Lines = fmt_lines(Prefix, PathValues, Epoch),
+  IoData = [Lines | drain_message_queue(Prefix, [])],
+  case send(Socket, IoData) of
     ok              -> ok;
     {error, Reason} -> exit({socket_error, Reason})
   end.
 
+drain_message_queue(Prefix, Acc) ->
+  receive
+    {send, PathValues, Epoch} ->
+      Lines = fmt_lines(Prefix, PathValues, Epoch),
+      drain_message_queue(Prefix, [Lines | Acc])
+    after
+      0 ->
+        lists:reverse(Acc)
+  end.
+
 send(_Socket, <<>>) -> ok;
 send(Socket, Line)  -> gen_tcp:send(Socket, Line).
-
 
 -spec fmt_lines(?undef | path(), [{path(), value()}], epoch()) -> iodata().
 fmt_lines(Prefix, PathValues, Epoch) ->
@@ -122,7 +135,7 @@ fmt_lines(Prefix, PathValues, Epoch) ->
 fmt_line(Prefix, Path, Value, Epoch) ->
   [fmt_path(Prefix, Path), " ",
    fmt_value(Value), " ",
-   integer_to_list(Epoch), "\r\n"].
+   integer_to_list(Epoch), "\n"].
 
 -spec fmt_value(number()) -> iodata().
 fmt_value(I) when is_integer(I) -> integer_to_list(I);
