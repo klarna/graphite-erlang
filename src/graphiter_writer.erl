@@ -38,7 +38,12 @@ start_link(Name, Opts) ->
 
 -spec cast(atom(), [{path(), value()}], epoch()) -> ok.
 cast(Name, PathValues, Epoch) ->
-  gen_server:cast(Name, {send, PathValues, Epoch}).
+  try
+    erlang:send(Name, {send, PathValues, Epoch})
+  catch
+    error : badarg ->
+      ok
+  end.
 
 %%%_* gen_server callbacks =====================================================
 
@@ -57,10 +62,7 @@ init([Name, Opts]) ->
 post_init(#state{opts = Opts} = State) ->
   Host = proplists:get_value(host, Opts, ?DEFAULT_HOST),
   Port = proplists:get_value(port, Opts, ?DEFAULT_PORT),
-  %% use delay_send to send larger tcp packets
-  SocketOpts = [ {delay_send, true}
-               , {send_timeout, ?SOCKET_SEND_TIMEOUT}
-               ],
+  SocketOpts = [ {send_timeout, ?SOCKET_SEND_TIMEOUT} ],
   case gen_tcp:connect(Host, Port, SocketOpts, ?SOCKET_INIT_TIMEOUT) of
     {ok, Socket} ->
       State#state{socket = Socket};
@@ -71,14 +73,14 @@ post_init(#state{opts = Opts} = State) ->
 handle_call(Call, _From, State) ->
   {reply, {error, {unexpected_call, Call}}, State}.
 
-handle_cast({send, PathValues, Epoch}, State) ->
-  ok = handle_send(State, PathValues, Epoch),
-  {noreply, State};
 handle_cast(post_init, State) ->
   {noreply, post_init(State)};
 handle_cast(_Cast, State) ->
   {noreply, State}.
 
+handle_info({send, PathValues, Epoch}, State) ->
+  ok = handle_send(State, PathValues, Epoch),
+  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -98,31 +100,48 @@ close_socket(Socket) ->
   _ = gen_tcp:close(Socket),
   ok.
 
-handle_send(#state{socket = Socket, prefix = Prefix}, PathValues, Epoch) ->
-  case send(Socket, fmt_lines(Prefix, PathValues, Epoch)) of
+handle_send(#state{socket = Socket, prefix = Prefix}, PathValues, Epoch0) ->
+  Dict0  = add_values(dict:new(), PathValues, Epoch0),
+  Dict   = drain_message_queue(Dict0),
+  IoData = lists:map(fun({{Path, Epoch}, Value}) ->
+                       fmt_line(Prefix, Path, Value, Epoch)
+                     end, dict:to_list(Dict)),
+  case send(Socket, IoData) of
     ok              -> ok;
     {error, Reason} -> exit({socket_error, Reason})
   end.
 
-send(_Socket, <<>>) -> ok;
-send(Socket, Line)  -> gen_tcp:send(Socket, Line).
+%% @private Graphite seems only take one data point
+%% and discard the sucessive ones with in one second
+%% use dict to perform a per-second compaction before send
+%% @end
+add_values(Dict, [], _Epoch) ->
+  Dict;
+add_values(Dict, [{Path, Value}], Epoch) ->
+  dict:store({Path, Epoch}, Value, Dict).
 
+drain_message_queue(Dict) ->
+  receive
+    {send, PathValues, Epoch} ->
+      NewDict = add_values(Dict, PathValues, Epoch),
+      drain_message_queue(NewDict)
+    after
+      0 ->
+        Dict
+  end.
 
--spec fmt_lines(?undef | path(), [{path(), value()}], epoch()) -> iodata().
-fmt_lines(Prefix, PathValues, Epoch) ->
-  iolist_to_binary(
-    lists:map(fun({Path, Value}) ->
-                fmt_line(Prefix, Path, Value, Epoch)
-              end, PathValues)).
+send(_Socket, [])    -> ok;
+send(Socket, IoData) -> gen_tcp:send(Socket, IoData).
 
 %% @private Format <metric path> <metric value> <metric timestamp>
 %% See http://graphite.readthedocs.io/en/latest/feeding-carbon.html
 %% @end
 -spec fmt_line(?undef | path(), path(), value(), epoch()) -> iodata().
 fmt_line(Prefix, Path, Value, Epoch) ->
-  [fmt_path(Prefix, Path), " ",
-   fmt_value(Value), " ",
-   integer_to_list(Epoch), "\r\n"].
+  iolist_to_binary(
+    [fmt_path(Prefix, Path), " ",
+     fmt_value(Value), " ",
+     integer_to_list(Epoch), "\n"]).
 
 -spec fmt_value(number()) -> iodata().
 fmt_value(I) when is_integer(I) -> integer_to_list(I);
