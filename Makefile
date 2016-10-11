@@ -1,6 +1,6 @@
 PROJECT = graphiter
 PROJECT_DESCRIPTION = Graphite (carbon) metrics reporter for Erlang
-PROJECT_VERSION = 1.0.0
+PROJECT_VERSION = 1.0.1
 
 DEPS = supervisor3
 
