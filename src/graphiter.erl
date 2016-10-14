@@ -52,7 +52,7 @@ cast(Name, PathValues0) ->
 cast(Name, Path, Value) ->
   cast(Name, Path, Value, epoch()).
 
-%% @doc Send <prefix>.<path> <metric value> <metric timestamp> to graphite.
+%% @doc Send `<prefix>.<path> <metric value> <metric timestamp>' to graphite.
 %% where prefix is taken from start options (@see start/1.)
 %% @end
 -spec cast(name(), path(), value(), epoch()) -> ok.
