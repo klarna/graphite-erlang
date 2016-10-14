@@ -4,8 +4,7 @@
   {registered, []},
   {applications, [
     kernel,
-    stdlib,
-    supervisor3
+    stdlib
   ]},
   {modules, []},
   {mod, {graphiter_app, []}},
