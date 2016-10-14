@@ -16,3 +16,4 @@ rebar.lock
 .rebar/
 *.tmp
 *.coverdata
+_build

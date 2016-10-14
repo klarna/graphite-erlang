@@ -1,6 +1,6 @@
 {application, graphiter, [
   {description, "Graphite (carbon) metrics reporter for Erlang"},
-  {vsn, "1.0.2"},
+  {vsn, "1.0.3"},
   {registered, []},
   {applications, [
     kernel,
@@ -8,5 +8,11 @@
   ]},
   {modules, []},
   {mod, {graphiter_app, []}},
-  {env, []}
+  {env, []},
+  {maintainers,["Shi Zaiming","Ivan Dyachkov"]},
+  {licenses,["Apache License 2.0"]},
+  {links,[{"Github","https://github.com/klarna/graphite-erlang"}]},
+  {build_tools, ["make", "rebar", "rebar3"]},
+  {files,["src","rebar.config","rebar.config.script",
+          "README.md","LICENSE","Makefile","erlang.mk"]}
 ]}.
