@@ -15,7 +15,8 @@
              ]).
 
 -type name() :: atom().
--type path() :: atom() | binary() | [atom()] | [binary()].
+-type path_seg() :: atom() | binary().
+-type path() :: path_seg() | [path_seg()].
 -type value() :: number().
 -type epoch() :: pos_integer().
 
