@@ -1,6 +1,6 @@
 {application, graphiter, [
   {description, "Graphite (carbon) metrics reporter for Erlang"},
-  {vsn, "1.0.3"},
+  {vsn, "1.0.4"},
   {registered, []},
   {applications, [
     kernel,

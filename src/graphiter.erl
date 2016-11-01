@@ -61,7 +61,6 @@ cast(Name, Path, Value, Epoch) ->
 
 %% @doc Increment a counter and send to graphite.
 -spec incr_cast(name(), path(), value()) -> ok.
-incr_cast(_Name, _Path, 0) -> ok;
 incr_cast(Name, Path0, IncrValue) when is_integer(IncrValue) ->
   Path = path(Path0),
   Default = {Path, 0},
