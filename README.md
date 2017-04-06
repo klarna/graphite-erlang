@@ -1,10 +1,10 @@
-# Graphite (carbon) metrics reporter Erlang lib.
+# Graphite (carbon) Metrics Reporter For Erlang.
 
 A dead-simple graphite metrics writer for Erlang, supports only counter and gauge (no histogram).
 
-For richer metrics framework, see [folsom](https://github.com/boundary/folsom) + [folsomite](https://github.com/campanja/folsomite)
+For richer metrics framework, see [folsom](https://github.com/boundary/folsom) + [folsomite](https://github.com/campanja/folsomite) or [exometer](https://github.com/Feuerlabs/exometer)
 
-## Start a repoter by default
+## Start a Repoter by Default
 
 Add to graphiter's app env (in sys.config for example):
 
@@ -19,17 +19,17 @@ Add to graphiter's app env (in sys.config for example):
           ]}.
 ```
 
-## Start a reporter on demand
+## Start a Reporter on Demand
 
-Add nothing to graphiter app env.
+No need for config in app env or sys.config.
 
 ```
 graphiter_sup:start_writer(Name, Opts)
 ```
 
-Where Opts is should of the same pattern as the example given above.
+Where Opts is of the same pattern as the example above.
 
-## Bump and counter
+## Bump Counters
 
 ```
 graphiter:incr_cast(Name, GraphitePath, IncrValue)
@@ -37,18 +37,18 @@ graphiter:incr_cast(Name, GraphitePath, IncrValue)
 
 Where GraphitePath is a (or a list of) dot-separated string binary
 
-## Send counter or gauge value
+## Send Counter or Gauge Values
 
 ```
 graphiter:cast(Name, GraphitePath, Value)
 graphiter:cast(Name, GraphitePath, Value, EpochNow)
 ```
 
-## Send a batch of values
+## Send a Batch of Values
 
 ```
 graphiter:cast(Name, Values)
 ```
 
-Where Values is of spec `[{GraphitePath, Value}]`
+Where `Values` is of spec `[{GraphitePath, Value}]`
 
