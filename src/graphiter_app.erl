@@ -9,3 +9,9 @@ start(_Type, _Args) ->
 
 stop(_State) ->
   ok.
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

@@ -21,7 +21,7 @@ init([]) ->
 
 writers() ->
   %% start writers pre-defined in app env
-  Writers = application:get_env(?APPLICATION, writers, []),
+  Writers = graphiter:get_writers(),
   lists:map(fun writer/1, Writers).
 
 writer({Name, Opts}) ->

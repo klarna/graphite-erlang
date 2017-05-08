@@ -6,6 +6,7 @@
         , cast/4
         , incr_cast/3
         , path/1
+        , get_writers/0
         ]).
 
 -export_type([ name/0
@@ -20,7 +21,16 @@
 -type value() :: number().
 -type epoch() :: pos_integer().
 
+-ifndef(APPLICATION).
+-define(APPLICATION, ?MODULE).
+-endif.
+
 %%%_* APIs =====================================================================
+
+%% @doc Get configured writers.
+-spec get_writers() -> [{name(), proplists:proplist()}].
+get_writers() ->
+  application:get_env(?APPLICATION, writers, []).
 
 %% @doc Start a new metrics writer under graphite_erlang's supervisor.
 %% Supported options:
